@@ -1,0 +1,209 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Clipify - Fast & Easy Video Editor</title>
+  <link rel="stylesheet" href="style.css" />
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet">
+</head>
+<body>
+  <div class="app">
+    <!-- Navbar -->
+    <header class="navbar">
+      <div class="logo">
+        <div class="logo-icon">
+          <svg viewBox="0 0 48 48" fill="none" xmlns="http://www.w3.org/2000/svg">
+            <rect width="48" height="48" rx="10" fill="url(#grad)"/>
+            <path d="M14 16h4v2h-4v-2zm0 6h4v2h-4v-2zm0 6h4v2h-4v-2zm0 6h4v2h-4v-2zM30 16h4v2h-4v-2zm0 6h4v2h-4v-2zm0 6h4v2h-4v-2zm0 6h4v2h-4v-2z" fill="white" opacity="0.7"/>
+            <path d="M20 18l12 6-12 6V18z" fill="white"/>
+            <path d="M18 34l6-4 4 6-6 2-4-4z" fill="white" opacity="0.9"/>
+            <defs>
+              <linearGradient id="grad" x1="0" y1="0" x2="48" y2="48">
+                <stop stop-color="#7C3AED"/>
+                <stop offset="1" stop-color="#2563EB"/>
+              </linearGradient>
+            </defs>
+          </svg>
+        </div>
+        <span class="logo-text">Clipify</span>
+      </div>
+      <div class="nav-actions">
+        <button class="btn btn-ghost" id="btnNew">New Project</button>
+        <button class="btn btn-primary" id="btnExport">Export</button>
+      </div>
+    </header>
+
+    <div class="main">
+      <!-- Sidebar -->
+      <aside class="sidebar">
+        <div class="tool-group">
+          <button class="tool-btn active" data-tool="media">
+            <span class="tool-icon">📁</span>
+            <span>Media</span>
+          </button>
+          <button class="tool-btn" data-tool="text">
+            <span class="tool-icon">T</span>
+            <span>Text</span>
+          </button>
+          <button class="tool-btn" data-tool="filters">
+            <span class="tool-icon">✨</span>
+            <span>Filters</span>
+          </button>
+          <button class="tool-btn" data-tool="audio">
+            <span class="tool-icon">🎵</span>
+            <span>Audio</span>
+          </button>
+          <button class="tool-btn" data-tool="ratio">
+            <span class="tool-icon">⬜</span>
+            <span>Ratio</span>
+          </button>
+        </div>
+
+        <div class="panel" id="panel-media">
+          <h3>Media</h3>
+          <label class="upload-box" for="videoInput">
+            <div class="upload-icon">+</div>
+            <div>Upload Video</div>
+            <div class="upload-hint">MP4, WebM, MOV</div>
+          </label>
+          <input type="file" id="videoInput" accept="video/*" multiple hidden />
+          <div class="media-list" id="mediaList"></div>
+        </div>
+
+        <div class="panel hidden" id="panel-text">
+          <h3>Add Text</h3>
+          <input type="text" id="textInput" placeholder="Enter your text..." />
+          <div class="row">
+            <label>Font Size</label>
+            <input type="range" id="fontSize" min="16" max="120" value="48" />
+          </div>
+          <div class="row">
+            <label>Color</label>
+            <input type="color" id="textColor" value="#ffffff" />
+          </div>
+          <button class="btn btn-primary full" id="btnAddText">Add Text</button>
+        </div>
+
+        <div class="panel hidden" id="panel-filters">
+          <h3>Filters</h3>
+          <div class="filter-grid">
+            <button class="filter-btn" data-filter="none">Original</button>
+            <button class="filter-btn" data-filter="grayscale">B&W</button>
+            <button class="filter-btn" data-filter="sepia">Sepia</button>
+            <button class="filter-btn" data-filter="contrast">Contrast</button>
+            <button class="filter-btn" data-filter="brightness">Bright</button>
+            <button class="filter-btn" data-filter="saturate">Vibrant</button>
+          </div>
+          <div class="row">
+            <label>Brightness</label>
+            <input type="range" id="brightness" min="50" max="150" value="100" />
+          </div>
+          <div class="row">
+            <label>Contrast</label>
+            <input type="range" id="contrast" min="50" max="150" value="100" />
+          </div>
+          <div class="row">
+            <label>Saturate</label>
+            <input type="range" id="saturate" min="0" max="200" value="100" />
+          </div>
+        </div>
+
+        <div class="panel hidden" id="panel-audio">
+          <h3>Audio</h3>
+          <label class="upload-box small" for="audioInput">
+            <div>Upload Music</div>
+          </label>
+          <input type="file" id="audioInput" accept="audio/*" hidden />
+          <div class="row">
+            <label>Volume</label>
+            <input type="range" id="volume" min="0" max="100" value="80" />
+          </div>
+          <div id="audioInfo" class="audio-info"></div>
+        </div>
+
+        <div class="panel hidden" id="panel-ratio">
+          <h3>Aspect Ratio</h3>
+          <div class="ratio-grid">
+            <button class="ratio-btn active" data-ratio="16:9">16:9</button>
+            <button class="ratio-btn" data-ratio="9:16">9:16</button>
+            <button class="ratio-btn" data-ratio="1:1">1:1</button>
+            <button class="ratio-btn" data-ratio="4:5">4:5</button>
+          </div>
+        </div>
+      </aside>
+
+      <!-- Preview Area -->
+      <section class="preview-area">
+        <div class="preview-wrapper" id="previewWrapper">
+          <video id="previewVideo" playsinline></video>
+          <canvas id="previewCanvas" class="hidden"></canvas>
+          <div id="textOverlays"></div>
+          <div class="preview-placeholder" id="placeholder">
+            <div class="placeholder-icon">🎬</div>
+            <p>Upload a video to start editing</p>
+          </div>
+        </div>
+
+        <div class="playback-controls">
+          <button id="btnPlay" class="control-btn">▶</button>
+          <div class="time-display">
+            <span id="currentTime">00:00</span> / <span id="totalTime">00:00</span>
+          </div>
+          <input type="range" id="seekBar" min="0" max="100" value="0" />
+          <select id="speedSelect">
+            <option value="0.5">0.5x</option>
+            <option value="0.75">0.75x</option>
+            <option value="1" selected>1x</option>
+            <option value="1.25">1.25x</option>
+            <option value="1.5">1.5x</option>
+            <option value="2">2x</option>
+          </select>
+        </div>
+      </section>
+    </div>
+
+    <!-- Timeline -->
+    <footer class="timeline-area">
+      <div class="timeline-toolbar">
+        <button class="btn btn-sm" id="btnSplit">Split</button>
+        <button class="btn btn-sm" id="btnDelete">Delete</button>
+        <span class="timeline-label">Timeline</span>
+      </div>
+      <div class="timeline-track" id="timeline">
+        <div class="playhead" id="playhead"></div>
+        <div class="clips-container" id="clipsContainer"></div>
+      </div>
+    </footer>
+  </div>
+
+  <!-- Export Modal -->
+  <div class="modal hidden" id="exportModal">
+    <div class="modal-content">
+      <h2>Export Video</h2>
+      <p>Your video is ready to download.</p>
+      <div class="export-options">
+        <label>
+          Quality
+          <select id="exportQuality">
+            <option value="720">720p</option>
+            <option value="1080" selected>1080p</option>
+          </select>
+        </label>
+      </div>
+      <div class="modal-actions">
+        <button class="btn btn-ghost" id="btnCancelExport">Cancel</button>
+        <button class="btn btn-primary" id="btnStartExport">Download</button>
+      </div>
+      <div class="progress hidden" id="exportProgress">
+        <div class="progress-bar" id="progressBar"></div>
+        <span id="progressText">Preparing...</span>
+      </div>
+    </div>
+  </div>
+
+  <script src="app.js"></script>
+</body>
+</html>
