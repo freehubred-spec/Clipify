@@ -424,7 +424,7 @@ document.getElementById('btnBack').onclick = () => {
   livePreview.style.display = 'none';
 };
 
-// ========== EXPORT (Improved) ==========
+// ========== EXPORT (with Audio) ==========
 const modal = document.getElementById('exportModal');
 const exportStatus = document.getElementById('exportStatus');
 const progressWrap = document.getElementById('progressWrap');
@@ -435,9 +435,11 @@ document.getElementById('btnExport').onclick = () => {
     alert('Please add a video first');
     return;
   }
-  exportStatus.textContent = 'Ready to export';
+  exportStatus.textContent = 'Ready to export video with audio';
   progressWrap.classList.add('hidden');
   progressBar.style.width = '0%';
+  document.getElementById('btnStartExport').disabled = false;
+  document.getElementById('btnStartExport').textContent = 'Start Export';
   modal.classList.remove('hidden');
 };
 
@@ -452,14 +454,11 @@ document.getElementById('btnStartExport').onclick = async () => {
   const btn = document.getElementById('btnStartExport');
   btn.disabled = true;
   btn.textContent = 'Exporting...';
-  exportStatus.textContent = 'Creating video, please wait...';
+  exportStatus.textContent = 'Preparing video + audio...';
   progressWrap.classList.remove('hidden');
   progressBar.style.width = '5%';
 
-  // Simple reliable method: download original + show message
-  // Full edited export needs FFmpeg which is heavy for mobile
   try {
-    // Try canvas recording first
     const canvas = document.createElement('canvas');
     const ctx = canvas.getContext('2d');
     const w = previewVideo.videoWidth || 720;
@@ -471,66 +470,108 @@ document.getElementById('btnStartExport').onclick = async () => {
     const extraFilter = 'brightness(' + state.brightness + '%) contrast(' + state.contrast + '%) saturate(' + state.saturate + '%)';
     const fullFilter = (baseFilter + ' ' + extraFilter).trim();
 
-    let mime = 'video/webm;codecs=vp8';
-    if (!MediaRecorder.isTypeSupported(mime)) {
-      mime = 'video/webm';
-    }
-    if (!MediaRecorder.isTypeSupported(mime)) {
-      // Fallback - just download original
-      throw new Error('MediaRecorder not supported');
-    }
-
-    const stream = canvas.captureStream(25);
-    const recorder = new MediaRecorder(stream, { mimeType: mime, videoBitsPerSecond: 2500000 });
-    const chunks = [];
-
-    recorder.ondataavailable = e => { if (e.data && e.data.size > 0) chunks.push(e.data); };
-
-    const stopped = new Promise(resolve => {
-      recorder.onstop = resolve;
-    });
-
     // Reset video
     previewVideo.pause();
     previewVideo.currentTime = 0;
-    await new Promise(r => { previewVideo.onseeked = r; setTimeout(r, 300); });
+    await new Promise(function(r) {
+      previewVideo.onseeked = function() { r(); };
+      setTimeout(r, 400);
+    });
 
     progressBar.style.width = '15%';
-    recorder.start(200);
 
-    // Play and draw with requestAnimationFrame
+    // Get video track from canvas (edited frames)
+    const canvasStream = canvas.captureStream(25);
+    const videoTrack = canvasStream.getVideoTracks()[0];
+
+    // Get audio track from original video
+    let audioTrack = null;
+    try {
+      if (typeof previewVideo.captureStream === 'function') {
+        const videoStream = previewVideo.captureStream();
+        const audioTracks = videoStream.getAudioTracks();
+        if (audioTracks.length > 0) {
+          audioTrack = audioTracks[0];
+        }
+      }
+    } catch (e) {
+      console.log('Audio capture not available', e);
+    }
+
+    // Combine tracks
+    const tracks = [videoTrack];
+    if (audioTrack) tracks.push(audioTrack);
+    const combinedStream = new MediaStream(tracks);
+
+    // Choose supported mime
+    let mimeType = 'video/webm;codecs=vp8,opus';
+    if (!MediaRecorder.isTypeSupported(mimeType)) {
+      mimeType = 'video/webm;codecs=vp8';
+    }
+    if (!MediaRecorder.isTypeSupported(mimeType)) {
+      mimeType = 'video/webm';
+    }
+    if (!MediaRecorder.isTypeSupported(mimeType)) {
+      throw new Error('MediaRecorder not supported on this browser');
+    }
+
+    const recorder = new MediaRecorder(combinedStream, {
+      mimeType: mimeType,
+      videoBitsPerSecond: 2500000
+    });
+
+    const chunks = [];
+    recorder.ondataavailable = function(e) {
+      if (e.data && e.data.size > 0) chunks.push(e.data);
+    };
+
+    const stopped = new Promise(function(resolve) {
+      recorder.onstop = resolve;
+      recorder.onerror = function() { resolve(); };
+    });
+
+    recorder.start(250);
+    progressBar.style.width = '25%';
+
+    // Play video and draw frames
+    const duration = Math.min(clip.duration || 30, 90);
     let startTime = null;
-    const duration = Math.min(clip.duration, 60); // max 60s for safety
+    let finished = false;
 
-    function render(now) {
+    function draw(now) {
+      if (finished) return;
       if (!startTime) startTime = now;
       const elapsed = (now - startTime) / 1000;
 
-      if (elapsed >= duration || previewVideo.ended) {
-        try { recorder.stop(); } catch(e) {}
+      if (elapsed >= duration || previewVideo.ended || previewVideo.paused && elapsed > 1) {
+        finished = true;
+        try { recorder.stop(); } catch (e) {}
         previewVideo.pause();
         return;
       }
 
+      // Draw black background
       ctx.fillStyle = '#000';
       ctx.fillRect(0, 0, w, h);
+
+      // Draw video with filter
       ctx.filter = fullFilter || 'none';
       try {
         ctx.drawImage(previewVideo, 0, 0, w, h);
-      } catch(e) {}
+      } catch (e) {}
       ctx.filter = 'none';
 
-      // Draw texts
-      state.textOverlays.forEach(el => {
+      // Draw text overlays
+      state.textOverlays.forEach(function(el) {
         try {
           const style = window.getComputedStyle(el);
           const fontSize = parseFloat(style.fontSize) || 36;
           const scaleX = w / (videoContainer.clientWidth || 360);
           const scaleY = h / (videoContainer.clientHeight || 640);
           const scale = Math.min(scaleX, scaleY);
+
           ctx.font = 'bold ' + Math.round(fontSize * scale) + 'px ' + (style.fontFamily || 'Inter, sans-serif');
           ctx.fillStyle = style.color || '#ffffff';
-          ctx.textAlign = 'left';
           ctx.textBaseline = 'top';
           ctx.shadowColor = 'rgba(0,0,0,0.85)';
           ctx.shadowBlur = 6;
@@ -539,39 +580,55 @@ document.getElementById('btnStartExport').onclick = async () => {
 
           let left = parseFloat(el.style.left) || 0;
           let top = parseFloat(el.style.top) || 0;
-          if (el.style.transform && el.style.transform.includes('translate')) {
+          let align = 'left';
+
+          if (el.style.transform && el.style.transform.indexOf('translate') !== -1) {
             left = w / 2;
             top = h * 0.4;
-            ctx.textAlign = 'center';
+            align = 'center';
           } else {
             left = left * scaleX;
             top = top * scaleY;
           }
+
+          ctx.textAlign = align;
           ctx.fillText(el.textContent || '', left, top);
           ctx.shadowColor = 'transparent';
-        } catch(err) {}
+        } catch (err) {}
       });
 
-      const pct = 15 + Math.min(80, (elapsed / duration) * 80);
+      const pct = 25 + Math.min(65, (elapsed / duration) * 65);
       progressBar.style.width = pct + '%';
-      requestAnimationFrame(render);
+
+      requestAnimationFrame(draw);
     }
 
+    previewVideo.muted = false;
+    previewVideo.volume = state.volume || 0.8;
     previewVideo.playbackRate = 1;
+
     await previewVideo.play();
-    requestAnimationFrame(render);
+    requestAnimationFrame(draw);
+
+    // Safety timeout
+    setTimeout(function() {
+      if (!finished) {
+        finished = true;
+        try { recorder.stop(); } catch (e) {}
+        previewVideo.pause();
+      }
+    }, (duration + 2) * 1000);
 
     await stopped;
-
     progressBar.style.width = '95%';
 
     if (chunks.length === 0) {
-      throw new Error('No data recorded');
+      throw new Error('No video data recorded');
     }
 
     const blob = new Blob(chunks, { type: 'video/webm' });
-    if (blob.size < 1000) {
-      throw new Error('File too small');
+    if (blob.size < 2000) {
+      throw new Error('Recorded file too small');
     }
 
     const url = URL.createObjectURL(blob);
@@ -581,31 +638,32 @@ document.getElementById('btnStartExport').onclick = async () => {
     document.body.appendChild(a);
     a.click();
     document.body.removeChild(a);
-    setTimeout(() => URL.revokeObjectURL(url), 5000);
+    setTimeout(function() { URL.revokeObjectURL(url); }, 8000);
 
-    exportStatus.textContent = 'Video downloaded!';
+    exportStatus.textContent = audioTrack ? 'Video + Audio downloaded!' : 'Video downloaded (audio not available on this device)';
     progressBar.style.width = '100%';
     btn.disabled = false;
     btn.textContent = 'Start Export';
-    setTimeout(() => modal.classList.add('hidden'), 2000);
+    setTimeout(function() { modal.classList.add('hidden'); }, 2200);
 
   } catch (err) {
     console.error('Export error:', err);
-    // Reliable fallback
     exportStatus.textContent = 'Downloading original video...';
     progressBar.style.width = '100%';
+
     const a = document.createElement('a');
     a.href = clip.url;
     a.download = 'clipify_' + (clip.name || 'video.mp4');
     document.body.appendChild(a);
     a.click();
     document.body.removeChild(a);
+
     btn.disabled = false;
     btn.textContent = 'Start Export';
-    setTimeout(() => {
-      exportStatus.textContent = 'Note: Full edit export works best on desktop Chrome.';
-      setTimeout(() => modal.classList.add('hidden'), 2500);
-    }, 800);
+    setTimeout(function() {
+      exportStatus.textContent = 'Note: Best results on desktop Chrome';
+      setTimeout(function() { modal.classList.add('hidden'); }, 2500);
+    }, 900);
   }
 };
 
