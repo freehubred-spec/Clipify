@@ -424,7 +424,7 @@ document.getElementById('btnBack').onclick = () => {
   livePreview.style.display = 'none';
 };
 
-// ========== EXPORT (Canvas + MediaRecorder) ==========
+// ========== EXPORT (Improved) ==========
 const modal = document.getElementById('exportModal');
 const exportStatus = document.getElementById('exportStatus');
 const progressWrap = document.getElementById('progressWrap');
@@ -435,7 +435,7 @@ document.getElementById('btnExport').onclick = () => {
     alert('Please add a video first');
     return;
   }
-  exportStatus.textContent = 'Ready to export edited video';
+  exportStatus.textContent = 'Ready to export';
   progressWrap.classList.add('hidden');
   progressBar.style.width = '0%';
   modal.classList.remove('hidden');
@@ -449,123 +449,163 @@ document.getElementById('btnStartExport').onclick = async () => {
   const clip = state.clips[state.currentClipIndex] || state.clips[0];
   if (!clip) return;
 
-  exportStatus.textContent = 'Recording edited video... Please wait';
+  const btn = document.getElementById('btnStartExport');
+  btn.disabled = true;
+  btn.textContent = 'Exporting...';
+  exportStatus.textContent = 'Creating video, please wait...';
   progressWrap.classList.remove('hidden');
-  progressBar.style.width = '10%';
+  progressBar.style.width = '5%';
 
+  // Simple reliable method: download original + show message
+  // Full edited export needs FFmpeg which is heavy for mobile
   try {
-    // Create offscreen canvas matching video size
+    // Try canvas recording first
     const canvas = document.createElement('canvas');
     const ctx = canvas.getContext('2d');
-
-    // Use video dimensions
-    const w = previewVideo.videoWidth || 1280;
-    const h = previewVideo.videoHeight || 720;
+    const w = previewVideo.videoWidth || 720;
+    const h = previewVideo.videoHeight || 1280;
     canvas.width = w;
     canvas.height = h;
 
-    // Build filter string for canvas
     const baseFilter = FILTER_MAP[state.filter] || '';
     const extraFilter = 'brightness(' + state.brightness + '%) contrast(' + state.contrast + '%) saturate(' + state.saturate + '%)';
     const fullFilter = (baseFilter + ' ' + extraFilter).trim();
 
-    // MediaRecorder on canvas stream
-    const stream = canvas.captureStream(30);
-    const recorder = new MediaRecorder(stream, { mimeType: 'video/webm;codecs=vp9' });
+    let mime = 'video/webm;codecs=vp8';
+    if (!MediaRecorder.isTypeSupported(mime)) {
+      mime = 'video/webm';
+    }
+    if (!MediaRecorder.isTypeSupported(mime)) {
+      // Fallback - just download original
+      throw new Error('MediaRecorder not supported');
+    }
+
+    const stream = canvas.captureStream(25);
+    const recorder = new MediaRecorder(stream, { mimeType: mime, videoBitsPerSecond: 2500000 });
     const chunks = [];
 
-    recorder.ondataavailable = e => { if (e.data.size > 0) chunks.push(e.data); };
-    recorder.onstop = () => {
-      const blob = new Blob(chunks, { type: 'video/webm' });
-      const url = URL.createObjectURL(blob);
-      const a = document.createElement('a');
-      a.href = url;
-      a.download = 'clipify_edited.webm';
-      a.click();
-      URL.revokeObjectURL(url);
-      exportStatus.textContent = 'Download started!';
-      progressBar.style.width = '100%';
-      setTimeout(() => modal.classList.add('hidden'), 1500);
-    };
+    recorder.ondataavailable = e => { if (e.data && e.data.size > 0) chunks.push(e.data); };
 
-    // Play video from start and draw frames
+    const stopped = new Promise(resolve => {
+      recorder.onstop = resolve;
+    });
+
+    // Reset video
     previewVideo.pause();
     previewVideo.currentTime = 0;
-    await new Promise(r => { previewVideo.onseeked = r; });
+    await new Promise(r => { previewVideo.onseeked = r; setTimeout(r, 300); });
 
-    recorder.start(100);
-    progressBar.style.width = '30%';
+    progressBar.style.width = '15%';
+    recorder.start(200);
 
-    const duration = clip.duration;
-    const fps = 30;
-    const totalFrames = Math.ceil(duration * fps);
-    let frame = 0;
+    // Play and draw with requestAnimationFrame
+    let startTime = null;
+    const duration = Math.min(clip.duration, 60); // max 60s for safety
 
-    function drawFrame() {
-      if (frame >= totalFrames || previewVideo.ended) {
-        recorder.stop();
+    function render(now) {
+      if (!startTime) startTime = now;
+      const elapsed = (now - startTime) / 1000;
+
+      if (elapsed >= duration || previewVideo.ended) {
+        try { recorder.stop(); } catch(e) {}
         previewVideo.pause();
         return;
       }
 
-      // Draw video with filter
+      ctx.fillStyle = '#000';
+      ctx.fillRect(0, 0, w, h);
       ctx.filter = fullFilter || 'none';
-      ctx.drawImage(previewVideo, 0, 0, w, h);
+      try {
+        ctx.drawImage(previewVideo, 0, 0, w, h);
+      } catch(e) {}
       ctx.filter = 'none';
 
-      // Draw text overlays
+      // Draw texts
       state.textOverlays.forEach(el => {
-        const style = window.getComputedStyle(el);
-        const fontSize = parseFloat(style.fontSize) || 36;
-        const scale = w / (videoContainer.clientWidth || 360);
-        ctx.font = 'bold ' + (fontSize * scale) + 'px ' + (style.fontFamily || 'Inter');
-        ctx.fillStyle = style.color || '#fff';
-        ctx.textAlign = 'left';
-        ctx.textBaseline = 'top';
+        try {
+          const style = window.getComputedStyle(el);
+          const fontSize = parseFloat(style.fontSize) || 36;
+          const scaleX = w / (videoContainer.clientWidth || 360);
+          const scaleY = h / (videoContainer.clientHeight || 640);
+          const scale = Math.min(scaleX, scaleY);
+          ctx.font = 'bold ' + Math.round(fontSize * scale) + 'px ' + (style.fontFamily || 'Inter, sans-serif');
+          ctx.fillStyle = style.color || '#ffffff';
+          ctx.textAlign = 'left';
+          ctx.textBaseline = 'top';
+          ctx.shadowColor = 'rgba(0,0,0,0.85)';
+          ctx.shadowBlur = 6;
+          ctx.shadowOffsetX = 2;
+          ctx.shadowOffsetY = 2;
 
-        // Approximate position
-        const left = (parseFloat(el.style.left) || 0) * scale;
-        const top = (parseFloat(el.style.top) || 0) * scale;
-
-        // Simple shadow for readability
-        ctx.shadowColor = 'rgba(0,0,0,0.8)';
-        ctx.shadowBlur = 4;
-        ctx.shadowOffsetX = 2;
-        ctx.shadowOffsetY = 2;
-        ctx.fillText(el.textContent, left, top);
-        ctx.shadowColor = 'transparent';
+          let left = parseFloat(el.style.left) || 0;
+          let top = parseFloat(el.style.top) || 0;
+          if (el.style.transform && el.style.transform.includes('translate')) {
+            left = w / 2;
+            top = h * 0.4;
+            ctx.textAlign = 'center';
+          } else {
+            left = left * scaleX;
+            top = top * scaleY;
+          }
+          ctx.fillText(el.textContent || '', left, top);
+          ctx.shadowColor = 'transparent';
+        } catch(err) {}
       });
 
-      frame++;
-      progressBar.style.width = (30 + (frame / totalFrames) * 60) + '%';
-
-      // Advance video
-      previewVideo.currentTime = frame / fps;
-      // Wait a bit for seek
-      setTimeout(drawFrame, 1000 / fps);
+      const pct = 15 + Math.min(80, (elapsed / duration) * 80);
+      progressBar.style.width = pct + '%';
+      requestAnimationFrame(render);
     }
 
-    previewVideo.play().then(() => {
-      previewVideo.pause();
-      drawFrame();
-    }).catch(() => {
-      // Fallback: just download original if canvas fails
-      exportStatus.textContent = 'Export limited. Downloading original...';
-      const a = document.createElement('a');
-      a.href = clip.url;
-      a.download = 'clipify_' + (clip.name || 'video.mp4');
-      a.click();
-      setTimeout(() => modal.classList.add('hidden'), 1200);
-    });
+    previewVideo.playbackRate = 1;
+    await previewVideo.play();
+    requestAnimationFrame(render);
+
+    await stopped;
+
+    progressBar.style.width = '95%';
+
+    if (chunks.length === 0) {
+      throw new Error('No data recorded');
+    }
+
+    const blob = new Blob(chunks, { type: 'video/webm' });
+    if (blob.size < 1000) {
+      throw new Error('File too small');
+    }
+
+    const url = URL.createObjectURL(blob);
+    const a = document.createElement('a');
+    a.href = url;
+    a.download = 'clipify_edited.webm';
+    document.body.appendChild(a);
+    a.click();
+    document.body.removeChild(a);
+    setTimeout(() => URL.revokeObjectURL(url), 5000);
+
+    exportStatus.textContent = 'Video downloaded!';
+    progressBar.style.width = '100%';
+    btn.disabled = false;
+    btn.textContent = 'Start Export';
+    setTimeout(() => modal.classList.add('hidden'), 2000);
 
   } catch (err) {
-    console.error(err);
-    exportStatus.textContent = 'Export failed. Downloading original video.';
+    console.error('Export error:', err);
+    // Reliable fallback
+    exportStatus.textContent = 'Downloading original video...';
+    progressBar.style.width = '100%';
     const a = document.createElement('a');
     a.href = clip.url;
     a.download = 'clipify_' + (clip.name || 'video.mp4');
+    document.body.appendChild(a);
     a.click();
-    setTimeout(() => modal.classList.add('hidden'), 1500);
+    document.body.removeChild(a);
+    btn.disabled = false;
+    btn.textContent = 'Start Export';
+    setTimeout(() => {
+      exportStatus.textContent = 'Note: Full edit export works best on desktop Chrome.';
+      setTimeout(() => modal.classList.add('hidden'), 2500);
+    }, 800);
   }
 };
 
