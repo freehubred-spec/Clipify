@@ -659,9 +659,66 @@ input[type="color"] {
 /* Responsive */
 @media (max-width: 768px) {
   .sidebar {
-    width: 200px;
+    width: 70px;
   }
+  
+  .tool-btn span:not(.tool-icon) {
+    display: none;
+  }
+  
   .logo-text {
     display: none;
+  }
+  
+  .panel h3 {
+    font-size: 11px;
+  }
+  
+  .upload-box {
+    padding: 16px 8px;
+    font-size: 12px;
+  }
+  
+  .nav-actions .btn {
+    padding: 6px 10px;
+    font-size: 12px;
+  }
+}
+
+@media (max-width: 480px) {
+  .sidebar {
+    width: 60px;
+  }
+  
+  .main {
+    flex-direction: column;
+  }
+  
+  .sidebar {
+    width: 100%;
+    height: auto;
+    flex-direction: row;
+    border-right: none;
+    border-bottom: 1px solid var(--border);
+  }
+  
+  .tool-group {
+    width: 100%;
+    justify-content: space-around;
+  }
+  
+  .panel {
+    display: none;
+  }
+  
+  .panel:not(.hidden) {
+    position: fixed;
+    bottom: 140px;
+    left: 0;
+    right: 0;
+    background: var(--bg-panel);
+    z-index: 50;
+    max-height: 40vh;
+    border-top: 1px solid var(--border);
   }
 }
