@@ -5,11 +5,10 @@
   <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=5.0, user-scalable=yes" />
   <title>Clipify - Video Editor</title>
   <link rel="stylesheet" href="style.css" />
-  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&family=Poppins:wght@600;700&family=Oswald:wght@500;600&display=swap" rel="stylesheet">
+  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;600;700&family=Poppins:wght@600;700&family=Oswald:wght@500;600&family=Roboto:wght@500;700&family=Playfair+Display:wght@600;700&display=swap" rel="stylesheet">
 </head>
 <body>
   <div class="app">
-
     <header class="topbar">
       <button class="icon-btn" id="btnBack">✕</button>
       <div class="topbar-title">Clipify</div>
@@ -21,6 +20,8 @@
         <div class="video-container" id="videoContainer">
           <video id="previewVideo" playsinline></video>
           <div id="textOverlays"></div>
+          <!-- Live text preview (before adding) -->
+          <div id="liveTextPreview" class="text-overlay live-preview" style="display:none;"></div>
         </div>
         <div class="preview-empty" id="placeholder">
           <div class="empty-icon">🎬</div>
@@ -57,36 +58,18 @@
     </div>
 
     <nav class="bottom-tools">
-      <button class="tool active" data-tool="media">
-        <span class="tool-icon">📁</span>
-        <span class="tool-label">Media</span>
-      </button>
-      <button class="tool" data-tool="text">
-        <span class="tool-icon">T</span>
-        <span class="tool-label">Text</span>
-      </button>
-      <button class="tool" data-tool="filters">
-        <span class="tool-icon">✨</span>
-        <span class="tool-label">Filters</span>
-      </button>
-      <button class="tool" data-tool="audio">
-        <span class="tool-icon">🎵</span>
-        <span class="tool-label">Audio</span>
-      </button>
-      <button class="tool" data-tool="ratio">
-        <span class="tool-icon">⬜</span>
-        <span class="tool-label">Ratio</span>
-      </button>
+      <button class="tool active" data-tool="media"><span class="tool-icon">📁</span><span class="tool-label">Media</span></button>
+      <button class="tool" data-tool="text"><span class="tool-icon">T</span><span class="tool-label">Text</span></button>
+      <button class="tool" data-tool="filters"><span class="tool-icon">✨</span><span class="tool-label">Filters</span></button>
+      <button class="tool" data-tool="audio"><span class="tool-icon">🎵</span><span class="tool-label">Audio</span></button>
+      <button class="tool" data-tool="ratio"><span class="tool-icon">⬜</span><span class="tool-label">Ratio</span></button>
     </nav>
 
     <!-- MEDIA -->
     <div class="tool-panel hidden" id="panel-media">
       <div class="panel-handle"></div>
       <div class="panel-content">
-        <label class="upload-area" for="videoInput">
-          <div class="plus">+</div>
-          <div>Add Video</div>
-        </label>
+        <label class="upload-area" for="videoInput"><div class="plus">+</div><div>Add Video</div></label>
         <input type="file" id="videoInput" accept="video/*" multiple hidden />
         <div class="media-grid" id="mediaList"></div>
       </div>
@@ -96,33 +79,31 @@
     <div class="tool-panel hidden" id="panel-text">
       <div class="panel-handle"></div>
       <div class="panel-content">
-        <input type="text" id="textInput" placeholder="Type your text..." class="text-input" />
+        <input type="text" id="textInput" placeholder="Type text here..." class="text-input" />
         
-        <div class="section-label">Font Style</div>
+        <div class="section-label">Font</div>
         <div class="chip-row" id="fontStyleRow">
           <button class="chip active" data-font="Inter">Basic</button>
           <button class="chip" data-font="Poppins">Modern</button>
           <button class="chip" data-font="Oswald">Bold</button>
+          <button class="chip" data-font="Roboto">Clean</button>
+          <button class="chip" data-font="Playfair Display">Elegant</button>
         </div>
 
-        <div class="section-label">Text Style</div>
+        <div class="section-label">Style</div>
         <div class="chip-row" id="textStyleRow">
           <button class="chip active" data-style="normal">Normal</button>
           <button class="chip" data-style="shadow">Shadow</button>
           <button class="chip" data-style="outline">Outline</button>
           <button class="chip" data-style="background">Box</button>
+          <button class="chip" data-style="neon">Neon</button>
+          <button class="chip" data-style="double">Double</button>
         </div>
 
-        <div class="control-row">
-          <label>Size</label>
-          <input type="range" id="fontSize" min="18" max="90" value="36" />
-        </div>
-        <div class="control-row">
-          <label>Color</label>
-          <input type="color" id="textColor" value="#ffffff" />
-        </div>
+        <div class="control-row"><label>Size</label><input type="range" id="fontSize" min="16" max="90" value="36" /></div>
+        <div class="control-row"><label>Color</label><input type="color" id="textColor" value="#ffffff" /></div>
         <button class="action-btn" id="btnAddText">Add Text</button>
-        <p class="hint">After adding, drag the text to move it</p>
+        <p class="hint">Drag text on preview to move it</p>
       </div>
     </div>
 
@@ -130,7 +111,7 @@
     <div class="tool-panel hidden" id="panel-filters">
       <div class="panel-handle"></div>
       <div class="panel-content">
-        <div class="filter-grid">
+        <div class="filter-grid" id="filterGrid">
           <button class="filter-chip active" data-filter="none">Original</button>
           <button class="filter-chip" data-filter="grayscale">B&W</button>
           <button class="filter-chip" data-filter="sepia">Sepia</button>
@@ -143,19 +124,14 @@
           <button class="filter-chip" data-filter="mono">Mono</button>
           <button class="filter-chip" data-filter="cinema">Cinema</button>
           <button class="filter-chip" data-filter="bright">Bright</button>
+          <button class="filter-chip" data-filter="dramatic">Dramatic</button>
+          <button class="filter-chip" data-filter="soft">Soft</button>
+          <button class="filter-chip" data-filter="noir">Noir</button>
+          <button class="filter-chip" data-filter="sunset">Sunset</button>
         </div>
-        <div class="control-row">
-          <label>Brightness</label>
-          <input type="range" id="brightness" min="40" max="160" value="100" />
-        </div>
-        <div class="control-row">
-          <label>Contrast</label>
-          <input type="range" id="contrast" min="40" max="160" value="100" />
-        </div>
-        <div class="control-row">
-          <label>Saturate</label>
-          <input type="range" id="saturate" min="0" max="220" value="100" />
-        </div>
+        <div class="control-row"><label>Brightness</label><input type="range" id="brightness" min="40" max="160" value="100" /></div>
+        <div class="control-row"><label>Contrast</label><input type="range" id="contrast" min="40" max="160" value="100" /></div>
+        <div class="control-row"><label>Saturate</label><input type="range" id="saturate" min="0" max="220" value="100" /></div>
       </div>
     </div>
 
@@ -163,14 +139,17 @@
     <div class="tool-panel hidden" id="panel-audio">
       <div class="panel-handle"></div>
       <div class="panel-content">
-        <label class="upload-area small" for="audioInput">
-          <div>Add Music</div>
-        </label>
-        <input type="file" id="audioInput" accept="audio/*" hidden />
-        <div class="control-row">
-          <label>Volume</label>
-          <input type="range" id="volume" min="0" max="100" value="80" />
+        <div class="section-label">Built-in Effects</div>
+        <div class="sfx-row">
+          <button class="sfx-btn" data-sfx="click">Click</button>
+          <button class="sfx-btn" data-sfx="whoosh">Whoosh</button>
+          <button class="sfx-btn" data-sfx="pop">Pop</button>
+          <button class="sfx-btn" data-sfx="beep">Beep</button>
         </div>
+        <div class="section-label">Upload Music</div>
+        <label class="upload-area small" for="audioInput"><div>Add Music File</div></label>
+        <input type="file" id="audioInput" accept="audio/*" hidden />
+        <div class="control-row"><label>Volume</label><input type="range" id="volume" min="0" max="100" value="80" /></div>
         <div id="audioInfo" class="audio-name"></div>
       </div>
     </div>
@@ -181,33 +160,23 @@
       <div class="panel-content">
         <div class="section-label">Aspect Ratio</div>
         <div class="ratio-grid">
-          <button class="ratio-chip active" data-ratio="16:9">
-            <div class="ratio-preview r169"></div>
-            <span>16:9</span>
-          </button>
-          <button class="ratio-chip" data-ratio="9:16">
-            <div class="ratio-preview r916"></div>
-            <span>9:16</span>
-          </button>
-          <button class="ratio-chip" data-ratio="1:1">
-            <div class="ratio-preview r11"></div>
-            <span>1:1</span>
-          </button>
-          <button class="ratio-chip" data-ratio="4:5">
-            <div class="ratio-preview r45"></div>
-            <span>4:5</span>
-          </button>
+          <button class="ratio-chip active" data-ratio="16:9"><div class="ratio-preview r169"></div><span>16:9</span></button>
+          <button class="ratio-chip" data-ratio="9:16"><div class="ratio-preview r916"></div><span>9:16</span></button>
+          <button class="ratio-chip" data-ratio="1:1"><div class="ratio-preview r11"></div><span>1:1</span></button>
+          <button class="ratio-chip" data-ratio="4:5"><div class="ratio-preview r45"></div><span>4:5</span></button>
         </div>
       </div>
     </div>
-
   </div>
 
   <div class="modal hidden" id="exportModal">
     <div class="modal-box">
       <h3>Export Video</h3>
-      <p>Download your edited video</p>
-      <button class="action-btn" id="btnStartExport">Download</button>
+      <p id="exportStatus">Preparing edited video...</p>
+      <div class="progress-wrap hidden" id="progressWrap">
+        <div class="progress-bar" id="progressBar"></div>
+      </div>
+      <button class="action-btn" id="btnStartExport">Start Export</button>
       <button class="cancel-btn" id="btnCancelExport">Cancel</button>
     </div>
   </div>
