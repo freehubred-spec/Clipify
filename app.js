@@ -60,15 +60,33 @@ function getVideoDuration(file) {
 }
 
 // ---------- Tool Switching ----------
+function switchTool(toolName) {
+  // Remove active from all buttons
+  document.querySelectorAll('.tool-btn').forEach(b => b.classList.remove('active'));
+  
+  // Hide all panels
+  document.querySelectorAll('.panel').forEach(p => p.classList.add('hidden'));
+  
+  // Activate the clicked button
+  const activeBtn = document.querySelector(`.tool-btn[data-tool="${toolName}"]`);
+  if (activeBtn) activeBtn.classList.add('active');
+  
+  // Show the correct panel
+  const panel = document.getElementById('panel-' + toolName);
+  if (panel) {
+    panel.classList.remove('hidden');
+  }
+}
+
 document.querySelectorAll('.tool-btn').forEach(btn => {
   btn.addEventListener('click', () => {
-    document.querySelectorAll('.tool-btn').forEach(b => b.classList.remove('active'));
-    btn.classList.add('active');
     const tool = btn.dataset.tool;
-    document.querySelectorAll('.panel').forEach(p => p.classList.add('hidden'));
-    document.getElementById('panel-' + tool).classList.remove('hidden');
+    if (tool) switchTool(tool);
   });
 });
+
+// Make sure Media panel is visible on start
+switchTool('media');
 
 // ---------- Upload Videos ----------
 videoInput.addEventListener('change', async (e) => {
