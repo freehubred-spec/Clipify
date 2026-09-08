@@ -1,4 +1,4 @@
-// ==================== Clipify - InShot Style ====================
+// ==================== Clipify Fixed ====================
 
 const state = {
   clips: [],
@@ -11,10 +11,13 @@ const state = {
   aspectRatio: '16:9',
   textOverlays: [],
   volume: 0.8,
-  selectedClipId: null
+  selectedClipId: null,
+  fontFamily: 'Inter',
+  textStyle: 'normal'
 };
 
 const previewVideo = document.getElementById('previewVideo');
+const videoContainer = document.getElementById('videoContainer');
 const placeholder = document.getElementById('placeholder');
 const mediaList = document.getElementById('mediaList');
 const clipsContainer = document.getElementById('clipsContainer');
@@ -49,14 +52,12 @@ function getVideoDuration(file) {
   });
 }
 
-// Tool switching
+// ========== Tools ==========
 function switchTool(name) {
   document.querySelectorAll('.tool').forEach(t => t.classList.remove('active'));
   document.querySelectorAll('.tool-panel').forEach(p => p.classList.add('hidden'));
-
   const btn = document.querySelector(`.tool[data-tool="${name}"]`);
   if (btn) btn.classList.add('active');
-
   const panel = document.getElementById('panel-' + name);
   if (panel) panel.classList.remove('hidden');
 }
@@ -64,7 +65,6 @@ function switchTool(name) {
 document.querySelectorAll('.tool').forEach(btn => {
   btn.addEventListener('click', () => {
     const tool = btn.dataset.tool;
-    // Toggle if already open
     const panel = document.getElementById('panel-' + tool);
     if (panel && !panel.classList.contains('hidden') && btn.classList.contains('active')) {
       panel.classList.add('hidden');
@@ -75,7 +75,7 @@ document.querySelectorAll('.tool').forEach(btn => {
   });
 });
 
-// Upload video
+// ========== Upload ==========
 document.getElementById('videoInput').addEventListener('change', async (e) => {
   const files = Array.from(e.target.files);
   for (const file of files) {
@@ -130,10 +130,11 @@ function selectClip(index) {
   previewVideo.style.display = 'block';
   placeholder.style.display = 'none';
   applyFilters();
+  applyAspectRatio();
   updateTime();
 }
 
-// Playback
+// ========== Playback ==========
 btnPlay.onclick = () => {
   if (state.currentClipIndex < 0) return;
   if (state.isPlaying) {
@@ -192,7 +193,22 @@ speedSelect.onchange = () => {
   previewVideo.playbackRate = parseFloat(speedSelect.value);
 };
 
-// Filters
+// ========== Filters ==========
+const FILTER_MAP = {
+  none: '',
+  grayscale: 'grayscale(100%)',
+  sepia: 'sepia(70%)',
+  vintage: 'sepia(40%) contrast(110%) brightness(90%)',
+  cool: 'saturate(80%) hue-rotate(180deg) brightness(105%)',
+  warm: 'sepia(30%) saturate(140%) brightness(105%)',
+  contrast: 'contrast(140%)',
+  fade: 'brightness(110%) contrast(90%) saturate(80%)',
+  vivid: 'saturate(180%) contrast(120%)',
+  mono: 'grayscale(100%) contrast(120%)',
+  cinema: 'contrast(115%) saturate(90%) brightness(95%)',
+  bright: 'brightness(130%) saturate(110%)'
+};
+
 document.querySelectorAll('.filter-chip').forEach(btn => {
   btn.onclick = () => {
     document.querySelectorAll('.filter-chip').forEach(b => b.classList.remove('active'));
@@ -210,71 +226,116 @@ document.querySelectorAll('.filter-chip').forEach(btn => {
 });
 
 function applyFilters() {
-  let f = '';
-  if (state.filter === 'grayscale') f += 'grayscale(100%) ';
-  if (state.filter === 'sepia') f += 'sepia(80%) ';
-  if (state.filter === 'contrast') f += 'contrast(140%) ';
-  if (state.filter === 'brightness') f += 'brightness(130%) ';
-  if (state.filter === 'saturate') f += 'saturate(180%) ';
-  f += `brightness(${state.brightness}%) contrast(${state.contrast}%) saturate(${state.saturate}%)`;
-  previewVideo.style.filter = f;
+  const base = FILTER_MAP[state.filter] || '';
+  const extra = `brightness(${state.brightness}%) contrast(${state.contrast}%) saturate(${state.saturate}%)`;
+  previewVideo.style.filter = (base + ' ' + extra).trim();
 }
 
-// Text
+// ========== Text ==========
+document.querySelectorAll('#fontStyleRow .chip').forEach(btn => {
+  btn.onclick = () => {
+    document.querySelectorAll('#fontStyleRow .chip').forEach(b => b.classList.remove('active'));
+    btn.classList.add('active');
+    state.fontFamily = btn.dataset.font;
+  };
+});
+
+document.querySelectorAll('#textStyleRow .chip').forEach(btn => {
+  btn.onclick = () => {
+    document.querySelectorAll('#textStyleRow .chip').forEach(b => b.classList.remove('active'));
+    btn.classList.add('active');
+    state.textStyle = btn.dataset.style;
+  };
+});
+
 document.getElementById('btnAddText').onclick = () => {
   const text = document.getElementById('textInput').value.trim();
   if (!text) return;
-  const size = document.getElementById('fontSize').value;
+
+  const size = document.getElementById('fontSize').value + 'px';
   const color = document.getElementById('textColor').value;
 
   const el = document.createElement('div');
-  el.className = 'text-overlay';
+  el.className = 'text-overlay style-' + state.textStyle;
   el.textContent = text;
-  el.style.fontSize = size + 'px';
+  el.style.fontSize = size;
   el.style.color = color;
+  el.style.fontFamily = state.fontFamily + ', sans-serif';
   el.style.left = '50%';
   el.style.top = '40%';
   el.style.transform = 'translate(-50%, -50%)';
 
-  let dragging = false, sx, sy, ox, oy;
-  el.onmousedown = el.ontouchstart = (e) => {
-    dragging = true;
-    const pt = e.touches ? e.touches[0] : e;
-    sx = pt.clientX; sy = pt.clientY;
-    const r = el.getBoundingClientRect();
-    const pr = textOverlaysEl.getBoundingClientRect();
-    ox = r.left - pr.left; oy = r.top - pr.top;
-    e.preventDefault();
-  };
-  const move = (e) => {
-    if (!dragging) return;
-    const pt = e.touches ? e.touches[0] : e;
-    el.style.left = (ox + pt.clientX - sx) + 'px';
-    el.style.top = (oy + pt.clientY - sy) + 'px';
-    el.style.transform = 'none';
-  };
-  document.addEventListener('mousemove', move);
-  document.addEventListener('touchmove', move);
-  document.addEventListener('mouseup', () => dragging = false);
-  document.addEventListener('touchend', () => dragging = false);
-
+  makeDraggable(el);
   textOverlaysEl.appendChild(el);
   state.textOverlays.push(el);
   document.getElementById('textInput').value = '';
 };
 
-// Ratio
+function makeDraggable(el) {
+  let startX, startY, origX, origY, dragging = false;
+
+  function getPoint(e) {
+    if (e.touches && e.touches[0]) return e.touches[0];
+    return e;
+  }
+
+  function onStart(e) {
+    dragging = true;
+    const pt = getPoint(e);
+    startX = pt.clientX;
+    startY = pt.clientY;
+
+    // Get current position without transform
+    const parentRect = textOverlaysEl.getBoundingClientRect();
+    const rect = el.getBoundingClientRect();
+    origX = rect.left - parentRect.left;
+    origY = rect.top - parentRect.top;
+
+    el.style.left = origX + 'px';
+    el.style.top = origY + 'px';
+    el.style.transform = 'none';
+    e.preventDefault();
+  }
+
+  function onMove(e) {
+    if (!dragging) return;
+    const pt = getPoint(e);
+    const dx = pt.clientX - startX;
+    const dy = pt.clientY - startY;
+    el.style.left = (origX + dx) + 'px';
+    el.style.top = (origY + dy) + 'px';
+  }
+
+  function onEnd() {
+    dragging = false;
+  }
+
+  el.addEventListener('mousedown', onStart);
+  el.addEventListener('touchstart', onStart, { passive: false });
+  document.addEventListener('mousemove', onMove);
+  document.addEventListener('touchmove', onMove, { passive: false });
+  document.addEventListener('mouseup', onEnd);
+  document.addEventListener('touchend', onEnd);
+}
+
+// ========== Aspect Ratio ==========
+function applyAspectRatio() {
+  const [w, h] = state.aspectRatio.split(':').map(Number);
+  videoContainer.style.aspectRatio = `${w} / ${h}`;
+  videoContainer.style.width = '100%';
+  videoContainer.style.maxHeight = '100%';
+}
+
 document.querySelectorAll('.ratio-chip').forEach(btn => {
   btn.onclick = () => {
     document.querySelectorAll('.ratio-chip').forEach(b => b.classList.remove('active'));
     btn.classList.add('active');
     state.aspectRatio = btn.dataset.ratio;
-    const [w,h] = state.aspectRatio.split(':').map(Number);
-    document.getElementById('previewWrapper').style.aspectRatio = `${w}/${h}`;
+    applyAspectRatio();
   };
 });
 
-// Audio
+// ========== Audio ==========
 document.getElementById('audioInput').onchange = (e) => {
   const file = e.target.files[0];
   if (!file) return;
@@ -286,7 +347,7 @@ document.getElementById('volume').oninput = (e) => {
   previewVideo.volume = state.volume;
 };
 
-// Delete
+// ========== Delete / Split ==========
 document.getElementById('btnDelete').onclick = () => {
   if (!state.selectedClipId) return;
   const idx = state.clips.findIndex(c => c.id === state.selectedClipId);
@@ -309,10 +370,10 @@ document.getElementById('btnDelete').onclick = () => {
 };
 
 document.getElementById('btnSplit').onclick = () => {
-  alert('Split will be improved in next version');
+  alert('Split feature coming in next update');
 };
 
-// New Project
+// ========== New Project ==========
 document.getElementById('btnBack').onclick = () => {
   if (!confirm('Start new project? All clips will be removed.')) return;
   state.clips.forEach(c => {
@@ -332,7 +393,7 @@ document.getElementById('btnBack').onclick = () => {
   document.getElementById('audioInfo').textContent = '';
 };
 
-// Export
+// ========== Export ==========
 const modal = document.getElementById('exportModal');
 document.getElementById('btnExport').onclick = () => {
   if (!state.clips.length) {
@@ -353,4 +414,5 @@ document.getElementById('btnStartExport').onclick = () => {
 
 // Init
 switchTool('media');
-console.log('Clipify InShot UI loaded');
+applyAspectRatio();
+console.log('Clipify Fixed loaded');
