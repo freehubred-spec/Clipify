@@ -659,7 +659,7 @@ input[type="color"] {
 /* Responsive */
 @media (max-width: 768px) {
   .sidebar {
-    width: 70px;
+    width: 72px;
   }
   
   .tool-btn span:not(.tool-icon) {
@@ -686,10 +686,6 @@ input[type="color"] {
 }
 
 @media (max-width: 480px) {
-  .sidebar {
-    width: 60px;
-  }
-  
   .main {
     flex-direction: column;
   }
@@ -697,7 +693,7 @@ input[type="color"] {
   .sidebar {
     width: 100%;
     height: auto;
-    flex-direction: row;
+    flex-direction: column;
     border-right: none;
     border-bottom: 1px solid var(--border);
   }
@@ -705,20 +701,15 @@ input[type="color"] {
   .tool-group {
     width: 100%;
     justify-content: space-around;
+    flex-shrink: 0;
   }
   
-  .panel {
+  .tool-btn span:not(.tool-icon) {
     display: none;
   }
   
-  .panel:not(.hidden) {
-    position: fixed;
-    bottom: 140px;
-    left: 0;
-    right: 0;
-    background: var(--bg-panel);
-    z-index: 50;
-    max-height: 40vh;
-    border-top: 1px solid var(--border);
+  .panel {
+    max-height: 180px;
+    overflow-y: auto;
   }
 }
