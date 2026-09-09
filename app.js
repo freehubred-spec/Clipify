@@ -289,10 +289,20 @@ document.getElementById('btnAddText').onclick = () => {
 };
 
 function makeDraggable(el) {
-  let startX, startY, origX, origY, dragging = false;
+  let startX, startY, origX, origY, dragging = false, moved = false;
   function getPoint(e) { return e.touches && e.touches[0] ? e.touches[0] : e; }
+
+  function selectText(el) {
+    document.querySelectorAll('.text-overlay').forEach(function(t) {
+      t.classList.remove('selected-text');
+    });
+    el.classList.add('selected-text');
+    // Show quick delete option via confirm on long press handled separately
+  }
+
   function onStart(e) {
     dragging = true;
+    moved = false;
     const pt = getPoint(e);
     startX = pt.clientX; startY = pt.clientY;
     const parentRect = textOverlaysEl.getBoundingClientRect();
@@ -302,29 +312,71 @@ function makeDraggable(el) {
     el.style.left = origX + 'px';
     el.style.top = origY + 'px';
     el.style.transform = 'none';
+    selectText(el);
     e.preventDefault();
   }
   function onMove(e) {
     if (!dragging) return;
     const pt = getPoint(e);
-    el.style.left = (origX + pt.clientX - startX) + 'px';
-    el.style.top = (origY + pt.clientY - startY) + 'px';
+    const dx = pt.clientX - startX;
+    const dy = pt.clientY - startY;
+    if (Math.abs(dx) > 3 || Math.abs(dy) > 3) moved = true;
+    el.style.left = (origX + dx) + 'px';
+    el.style.top = (origY + dy) + 'px';
   }
-  function onEnd() { dragging = false; }
+  function onEnd() {
+    dragging = false;
+  }
+
   el.addEventListener('mousedown', onStart);
   el.addEventListener('touchstart', onStart, { passive: false });
   document.addEventListener('mousemove', onMove);
   document.addEventListener('touchmove', onMove, { passive: false });
   document.addEventListener('mouseup', onEnd);
   document.addEventListener('touchend', onEnd);
+
+  // Double click / double tap to delete
+  let lastTap = 0;
+  el.addEventListener('click', function(e) {
+    const now = Date.now();
+    if (now - lastTap < 300) {
+      if (confirm('Delete this text?')) {
+        el.remove();
+        state.textOverlays = state.textOverlays.filter(function(t) { return t !== el; });
+      }
+    }
+    lastTap = now;
+  });
 }
 
 // Aspect Ratio
 function applyAspectRatio() {
   const parts = state.aspectRatio.split(':');
-  videoContainer.style.aspectRatio = parts[0] + ' / ' + parts[1];
-  videoContainer.style.width = '100%';
+  const rw = parseFloat(parts[0]);
+  const rh = parseFloat(parts[1]);
+  videoContainer.style.aspectRatio = rw + ' / ' + rh;
+  videoContainer.style.width = 'auto';
+  videoContainer.style.height = 'auto';
+  videoContainer.style.maxWidth = '100%';
   videoContainer.style.maxHeight = '100%';
+
+  // Force layout recalculation
+  const box = document.getElementById('previewWrapper');
+  if (box) {
+    const boxW = box.clientWidth;
+    const boxH = box.clientHeight;
+    if (boxW && boxH) {
+      const boxRatio = boxW / boxH;
+      const targetRatio = rw / rh;
+      if (targetRatio > boxRatio) {
+        videoContainer.style.width = '100%';
+        videoContainer.style.height = 'auto';
+      } else {
+        videoContainer.style.height = '100%';
+        videoContainer.style.width = 'auto';
+      }
+    }
+  }
 }
 
 document.querySelectorAll('.ratio-chip').forEach(btn => {
@@ -345,28 +397,70 @@ function playSfx(type) {
   osc.connect(gain);
   gain.connect(audioCtx.destination);
   const now = audioCtx.currentTime;
+
   if (type === 'click') {
-    osc.frequency.value = 800;
-    gain.gain.setValueAtTime(0.3, now);
-    gain.gain.exponentialRampToValueAtTime(0.01, now + 0.08);
-    osc.start(now); osc.stop(now + 0.08);
+    osc.type = 'square';
+    osc.frequency.value = 900;
+    gain.gain.setValueAtTime(0.25, now);
+    gain.gain.exponentialRampToValueAtTime(0.01, now + 0.07);
+    osc.start(now); osc.stop(now + 0.07);
   } else if (type === 'whoosh') {
     osc.type = 'sawtooth';
-    osc.frequency.setValueAtTime(400, now);
-    osc.frequency.exponentialRampToValueAtTime(100, now + 0.3);
-    gain.gain.setValueAtTime(0.15, now);
-    gain.gain.exponentialRampToValueAtTime(0.01, now + 0.3);
-    osc.start(now); osc.stop(now + 0.3);
+    osc.frequency.setValueAtTime(600, now);
+    osc.frequency.exponentialRampToValueAtTime(80, now + 0.35);
+    gain.gain.setValueAtTime(0.18, now);
+    gain.gain.exponentialRampToValueAtTime(0.01, now + 0.35);
+    osc.start(now); osc.stop(now + 0.35);
   } else if (type === 'pop') {
-    osc.frequency.value = 300;
+    osc.type = 'sine';
+    osc.frequency.value = 280;
     gain.gain.setValueAtTime(0.4, now);
     gain.gain.exponentialRampToValueAtTime(0.01, now + 0.12);
     osc.start(now); osc.stop(now + 0.12);
   } else if (type === 'beep') {
-    osc.frequency.value = 600;
-    gain.gain.setValueAtTime(0.25, now);
-    gain.gain.exponentialRampToValueAtTime(0.01, now + 0.15);
-    osc.start(now); osc.stop(now + 0.15);
+    osc.type = 'sine';
+    osc.frequency.value = 700;
+    gain.gain.setValueAtTime(0.22, now);
+    gain.gain.exponentialRampToValueAtTime(0.01, now + 0.14);
+    osc.start(now); osc.stop(now + 0.14);
+  } else if (type === 'bird') {
+    // Simple bird-like chirp
+    osc.type = 'sine';
+    osc.frequency.setValueAtTime(1200, now);
+    osc.frequency.exponentialRampToValueAtTime(1800, now + 0.08);
+    osc.frequency.exponentialRampToValueAtTime(900, now + 0.18);
+    gain.gain.setValueAtTime(0.2, now);
+    gain.gain.exponentialRampToValueAtTime(0.01, now + 0.2);
+    osc.start(now); osc.stop(now + 0.2);
+  } else if (type === 'dog') {
+    osc.type = 'sawtooth';
+    osc.frequency.setValueAtTime(180, now);
+    osc.frequency.exponentialRampToValueAtTime(90, now + 0.25);
+    gain.gain.setValueAtTime(0.3, now);
+    gain.gain.exponentialRampToValueAtTime(0.01, now + 0.3);
+    osc.start(now); osc.stop(now + 0.3);
+  } else if (type === 'cat') {
+    osc.type = 'triangle';
+    osc.frequency.setValueAtTime(600, now);
+    osc.frequency.linearRampToValueAtTime(400, now + 0.15);
+    osc.frequency.linearRampToValueAtTime(700, now + 0.3);
+    gain.gain.setValueAtTime(0.2, now);
+    gain.gain.exponentialRampToValueAtTime(0.01, now + 0.35);
+    osc.start(now); osc.stop(now + 0.35);
+  } else if (type === 'notify') {
+    osc.type = 'sine';
+    osc.frequency.value = 520;
+    gain.gain.setValueAtTime(0.2, now);
+    gain.gain.exponentialRampToValueAtTime(0.01, now + 0.1);
+    osc.start(now); osc.stop(now + 0.1);
+    // second tone
+    const osc2 = audioCtx.createOscillator();
+    const gain2 = audioCtx.createGain();
+    osc2.connect(gain2); gain2.connect(audioCtx.destination);
+    osc2.frequency.value = 680;
+    gain2.gain.setValueAtTime(0.2, now + 0.12);
+    gain2.gain.exponentialRampToValueAtTime(0.01, now + 0.25);
+    osc2.start(now + 0.12); osc2.stop(now + 0.25);
   }
 }
 
@@ -603,8 +697,8 @@ document.getElementById('btnStartExport').onclick = async () => {
       requestAnimationFrame(draw);
     }
 
-    previewVideo.muted = false;
-    previewVideo.volume = state.volume || 0.8;
+    previewVideo.muted = true;  // silent export - no sound while recording
+    previewVideo.volume = 0;
     previewVideo.playbackRate = 1;
 
     await previewVideo.play();
