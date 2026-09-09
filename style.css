@@ -54,6 +54,12 @@ body {
   padding: 4px 8px; line-height: 1.2;
 }
 .text-overlay:active { cursor: grabbing; }
+
+.text-overlay.selected-text {
+  outline: 2px dashed #a78bfa;
+  outline-offset: 4px;
+}
+
 .live-preview { pointer-events: none !important; opacity: 0.9; z-index: 9; }
 .text-overlay.style-shadow { text-shadow: 2px 2px 8px rgba(0,0,0,0.9), 0 0 12px rgba(0,0,0,0.5); }
 .text-overlay.style-outline { -webkit-text-stroke: 1.5px #000; paint-order: stroke fill; }
