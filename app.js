@@ -52,6 +52,9 @@ function undoLast() {
   }
 }
 
+const btnUndo = document.getElementById('btnUndo');
+if (btnUndo) btnUndo.onclick = function() { undoLast(); };
+
 document.addEventListener('keydown', function(e) {
   if ((e.ctrlKey || e.metaKey) && e.key === 'z') {
     e.preventDefault();
@@ -320,24 +323,43 @@ document.getElementById('btnAddText').onclick = () => {
 };
 
 function makeDraggable(el) {
-  let startX, startY, origX, origY, dragging = false, moved = false;
-  function getPoint(e) { return e.touches && e.touches[0] ? e.touches[0] : e; }
+  let startX, startY, origX, origY, dragging = false;
+  let initialDistance = 0, initialFontSize = 36;
 
-  function selectText(el) {
+  function getPoint(e) {
+    if (e.touches && e.touches.length > 0) return e.touches[0];
+    return e;
+  }
+
+  function getDistance(t1, t2) {
+    const dx = t1.clientX - t2.clientX;
+    const dy = t1.clientY - t2.clientY;
+    return Math.sqrt(dx*dx + dy*dy);
+  }
+
+  function selectText(target) {
     document.querySelectorAll('.text-overlay').forEach(function(t) {
       t.classList.remove('selected-text');
     });
-    el.classList.add('selected-text');
-    // Show quick delete option via confirm on long press handled separately
+    target.classList.add('selected-text');
+    state.selectedTextEl = target;
+    var bar = document.getElementById('textEditBar');
+    if (bar) bar.classList.remove('hidden');
   }
 
   function onStart(e) {
+    if (e.touches && e.touches.length === 2) {
+      // Pinch start
+      initialDistance = getDistance(e.touches[0], e.touches[1]);
+      initialFontSize = parseFloat(el.style.fontSize) || 36;
+      e.preventDefault();
+      return;
+    }
     dragging = true;
-    moved = false;
-    const pt = getPoint(e);
+    var pt = getPoint(e);
     startX = pt.clientX; startY = pt.clientY;
-    const parentRect = textOverlaysEl.getBoundingClientRect();
-    const rect = el.getBoundingClientRect();
+    var parentRect = textOverlaysEl.getBoundingClientRect();
+    var rect = el.getBoundingClientRect();
     origX = rect.left - parentRect.left;
     origY = rect.top - parentRect.top;
     el.style.left = origX + 'px';
@@ -346,17 +368,28 @@ function makeDraggable(el) {
     selectText(el);
     e.preventDefault();
   }
+
   function onMove(e) {
+    if (e.touches && e.touches.length === 2) {
+      // Pinch resize
+      var dist = getDistance(e.touches[0], e.touches[1]);
+      if (initialDistance > 0) {
+        var scale = dist / initialDistance;
+        var newSize = Math.max(10, Math.min(120, initialFontSize * scale));
+        el.style.fontSize = newSize + 'px';
+      }
+      e.preventDefault();
+      return;
+    }
     if (!dragging) return;
-    const pt = getPoint(e);
-    const dx = pt.clientX - startX;
-    const dy = pt.clientY - startY;
-    if (Math.abs(dx) > 3 || Math.abs(dy) > 3) moved = true;
-    el.style.left = (origX + dx) + 'px';
-    el.style.top = (origY + dy) + 'px';
+    var pt = getPoint(e);
+    el.style.left = (origX + pt.clientX - startX) + 'px';
+    el.style.top = (origY + pt.clientY - startY) + 'px';
   }
+
   function onEnd() {
     dragging = false;
+    initialDistance = 0;
   }
 
   el.addEventListener('mousedown', onStart);
@@ -366,15 +399,18 @@ function makeDraggable(el) {
   document.addEventListener('mouseup', onEnd);
   document.addEventListener('touchend', onEnd);
 
-  // Double click / double tap to delete
-  let lastTap = 0;
-  el.addEventListener('click', function(e) {
-    const now = Date.now();
+  // Double tap to delete
+  var lastTap = 0;
+  el.addEventListener('click', function() {
+    var now = Date.now();
     if (now - lastTap < 300) {
       if (confirm('Delete this text?')) {
         pushUndo({ type: 'deleteText', el: el });
         el.remove();
         state.textOverlays = state.textOverlays.filter(function(t) { return t !== el; });
+        var bar = document.getElementById('textEditBar');
+        if (bar) bar.classList.add('hidden');
+        state.selectedTextEl = null;
       }
     }
     lastTap = now;
@@ -549,6 +585,29 @@ document.getElementById('btnBack').onclick = () => {
   document.getElementById('audioInfo').textContent = '';
   livePreview.style.display = 'none';
 };
+
+
+// Text Edit / Delete buttons
+document.getElementById('btnDeleteText') && document.getElementById('btnDeleteText').addEventListener('click', function() {
+  if (!state.selectedTextEl) return;
+  if (confirm('Delete selected text?')) {
+    pushUndo({ type: 'deleteText', el: state.selectedTextEl });
+    state.selectedTextEl.remove();
+    state.textOverlays = state.textOverlays.filter(function(t) { return t !== state.selectedTextEl; });
+    state.selectedTextEl = null;
+    var bar = document.getElementById('textEditBar');
+    if (bar) bar.classList.add('hidden');
+  }
+});
+
+document.getElementById('btnEditText') && document.getElementById('btnEditText').addEventListener('click', function() {
+  if (!state.selectedTextEl) return;
+  var current = state.selectedTextEl.textContent || '';
+  var newText = prompt('Edit text:', current);
+  if (newText !== null && newText.trim() !== '') {
+    state.selectedTextEl.textContent = newText.trim();
+  }
+});
 
 // ========== EXPORT (with Audio) ==========
 const modal = document.getElementById('exportModal');
