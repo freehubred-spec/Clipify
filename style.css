@@ -50,7 +50,7 @@ body {
 }
 .text-overlay {
   position: absolute; font-weight: 700; cursor: grab; pointer-events: auto;
-  user-select: none; white-space: nowrap; touch-action: none; z-index: 10;
+  user-select: none; white-space: normal; max-width: 90%; word-break: break-word; touch-action: none; z-index: 10;
   padding: 4px 8px; line-height: 1.2;
 }
 .text-overlay:active { cursor: grabbing; }
