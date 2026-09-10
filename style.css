@@ -205,3 +205,25 @@ body {
 @media (min-width: 600px) {
   .app { border-left: 1px solid var(--border); border-right: 1px solid var(--border); }
 }
+
+.text-edit-bar {
+  display: flex;
+  gap: 10px;
+  justify-content: center;
+  margin-top: 10px;
+}
+.text-edit-bar.hidden { display: none; }
+.text-edit-bar .mini-btn {
+  padding: 8px 16px;
+  font-size: 13px;
+  background: var(--surface2);
+  border: 1px solid var(--border);
+  border-radius: 8px;
+  color: var(--text);
+  cursor: pointer;
+}
+#btnDeleteText { border-color: #ef4444; color: #fca5a5; }
+.text-overlay.selected-text {
+  outline: 2px solid #a78bfa;
+  outline-offset: 3px;
+}
