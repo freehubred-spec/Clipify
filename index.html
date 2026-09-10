@@ -10,7 +10,8 @@
 <body>
   <div class="app">
     <header class="topbar">
-      <button class="icon-btn" id="btnBack">✕</button>
+      <button class="icon-btn" id="btnBack" title="New Project">✕</button>
+      <button class="icon-btn" id="btnUndo" title="Undo">↺</button>
       <div class="topbar-title">Clipify</div>
       <button class="export-btn" id="btnExport">Export</button>
     </header>
@@ -107,7 +108,11 @@
         <div class="control-row"><label>Size</label><input type="range" id="fontSize" min="10" max="100" value="36" /></div>
         <div class="control-row"><label>Color</label><input type="color" id="textColor" value="#ffffff" /></div>
         <button class="action-btn" id="btnAddText">Add Text</button>
-        <p class="hint">Drag text on preview to move it</p>
+        <p class="hint">• Drag to move<br>• Pinch to resize<br>• Double tap to delete<br>• Tap to select</p>
+        <div id="textEditBar" class="text-edit-bar hidden">
+          <button class="mini-btn" id="btnEditText">Edit</button>
+          <button class="mini-btn" id="btnDeleteText">Delete</button>
+        </div>
       </div>
     </div>
 
