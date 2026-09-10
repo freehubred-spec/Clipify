@@ -12,7 +12,8 @@ const state = {
   volume: 0.8,
   selectedClipId: null,
   fontFamily: 'Inter',
-  textStyle: 'normal'
+  textStyle: 'normal',
+  undoStack: []
 };
 
 const previewVideo = document.getElementById('previewVideo');
@@ -28,6 +29,36 @@ const totalTimeEl = document.getElementById('totalTime');
 const speedSelect = document.getElementById('speedSelect');
 const textOverlaysEl = document.getElementById('textOverlays');
 const livePreview = document.getElementById('liveTextPreview');
+
+function pushUndo(action) {
+  state.undoStack.push(action);
+  if (state.undoStack.length > 20) state.undoStack.shift();
+}
+
+function undoLast() {
+  const action = state.undoStack.pop();
+  if (!action) {
+    alert('Nothing to undo');
+    return;
+  }
+  if (action.type === 'deleteClip') {
+    state.clips.splice(action.index, 0, action.clip);
+    addMediaItem(action.clip);
+    addClipToTimeline(action.clip);
+    selectClip(action.index);
+  } else if (action.type === 'deleteText') {
+    textOverlaysEl.appendChild(action.el);
+    state.textOverlays.push(action.el);
+  }
+}
+
+document.addEventListener('keydown', function(e) {
+  if ((e.ctrlKey || e.metaKey) && e.key === 'z') {
+    e.preventDefault();
+    undoLast();
+  }
+});
+
 
 const FILTER_MAP = {
   none: '',
@@ -341,6 +372,7 @@ function makeDraggable(el) {
     const now = Date.now();
     if (now - lastTap < 300) {
       if (confirm('Delete this text?')) {
+        pushUndo({ type: 'deleteText', el: el });
         el.remove();
         state.textOverlays = state.textOverlays.filter(function(t) { return t !== el; });
       }
@@ -628,7 +660,7 @@ document.getElementById('btnStartExport').onclick = async () => {
     progressBar.style.width = '25%';
 
     // Play video and draw frames
-    const duration = Math.min(clip.duration || 30, 90);
+    const duration = clip.duration || 30;  // no artificial limit
     let startTime = null;
     let finished = false;
 
@@ -711,7 +743,7 @@ document.getElementById('btnStartExport').onclick = async () => {
         try { recorder.stop(); } catch (e) {}
         previewVideo.pause();
       }
-    }, (duration + 2) * 1000);
+    }, (duration + 3) * 1000);
 
     await stopped;
     progressBar.style.width = '95%';
